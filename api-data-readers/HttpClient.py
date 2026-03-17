@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 from dotenv import load_dotenv
 
@@ -10,31 +11,25 @@ class RiotHttpClient:
         self.api_key = os.getenv('API_KEY')
         if not self.api_key:
             raise ValueError("Brak klucza API! Sprawdź plik .env.")
-            
         self.region = region
         self.base_url = f"https://{self.region}.api.riotgames.com"
-        
-        self.headers = {
-            "X-Riot-Token": self.api_key
-        }
+        self.session = self.__start_session()
 
-    def get(self, endpoint: str):
-        """
-        Wysyła zapytanie GET do konkretnego endpointu Riot API.
-        """
-        url = f"{self.base_url}{endpoint}"
-        
-        # Wysłanie zapytania
-        response = requests.get(url, headers=self.headers)
-        
-        # Sprawdzenie, czy zapytanie się powiodło (np. czy nie ma błędu 403 lub 404)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            print(f"Błąd {response.status_code}: {response.text}")
-            return None
+    def __start_session(self):
+        session = requests.Session()
+        session.headers.update({
+            "X-Riot-Token": self.api_key,
+            "Content-Type": "application/json"
+        })
+        return session
+
+    def __api_calls(self, response, *args, **kwargs):
+        api_calls_left = response.headers.get("X-Method-Rate-Limit-Count").split(':')
+        if int(api_calls_left[0]) == 59:
+            print('Exceeded amount of requests. Sleeping')
 
 if __name__ == '__main__':
     client = RiotHttpClient()
-    data = client.get('/riot/account/v1/accounts/by-riot-id/Ulenidas/4661')
-    print(data)
+    url = client.base_url + '/riot/account/v1/accounts/by-riot-id/Ulenidas/4661'
+    resp = client.session.get(url)
+    print(resp.headers)
